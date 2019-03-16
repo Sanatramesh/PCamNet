@@ -1,37 +1,33 @@
 
+import numpy as np
 
 
 class ModelTraining:
 
-    def __init__(self, model, data_files, batch_size = 10, epochs = 20, model_checkpoint_dir = 'model/TD_net.pt'):
+    def __init__(self, model, data_loader, batch_size = 10, epochs = 20, model_ckpt_file = 'model/PCamNet.pt'):
         self.model = model
-        self.train_data_files = data_files # List of tuple: (left_cam, right_cam, disp_map) filenames
+        self.data_loader = data_loader # List of tuple: (left_cam, right_cam, disp_map) filenames
         self.batch_size = batch_size
-        self.no_epochs = epochs
-        self.no_data = len( self.train_data_files )
-        self.model_checkpoint_dir = model_checkpoint_dir
+        self.num_epochs = epochs
+        self.num_data = len( self.data_loader )
+        self.model_ckpt_file = model_ckpt_file
 
     def train_model(self):
-        data_points = np.zeros(len(self.train_data_files))
+        data_points = np.zeros( self.num_data )
         print ( 'Training Model: %s ... ' % self.model.get_name() )
-        # shuffle and read a batch from the train dataset
+
         # train model for one epoch - call fn model.train_batch(data) for each batch
-        for i in range( self.no_epochs ):
-            data_shuffled = self.train_data_files[:]
-            shuffle(data_shuffled)
+        for epoch in range( self.num_epochs ):
             training_loss = 0.0
 
-            for batch in range( 0, self.no_data, self.batch_size ):
-                print (batch,)
-                train_data = read_data( data_shuffled[ batch:batch + self.batch_size ] )
-                training_loss += self.model.train_batch( train_data )
+            for batch_data, batch_labels in self.data_loader:
+                print ( batch_data.shape, batch_labels.shape )
+                training_loss += self.model.train_batch( batch_data, batch_labels )
 
             training_loss /= ( self.no_data // self.batch_size )
             print ()
 
             # validate the model and print test, validation accuracy
-            batch_idx = next_batch( self.no_data, self.batch_size )
-            validation_data = read_data( [ self.train_data_files[ idx ] for idx in batch_idx ] )
             validation_loss = self.model.compute_loss( validation_data )
             valid_output = self.model.forward_pass( validation_data )
 
