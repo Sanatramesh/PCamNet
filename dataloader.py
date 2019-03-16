@@ -52,10 +52,12 @@ class CIFAR10Loader(Dataset):
             self.data.append(tmp)
             self.labels.append(batch[b'labels'])
 
-        self.data = np.concatenate(self.data)
-        self.data = self.data.reshape(self.data.shape[0], 3, 32, 32).swapaxes(1, 3).swapaxes(1, 2)
+        self.data = np.float32(np.concatenate(self.data))
+        self.data = self.data.reshape(self.data.shape[0], 3, 32, 32) #.swapaxes(1, 3).swapaxes(1, 2)
 
-        self.labels = np.concatenate(self.labels)
+        indices = np.concatenate(self.labels)
+        self.labels = np.zeros((len(indices), 10), dtype=np.float32)
+        self.labels[:, indices] = 1
 
         print('Data:', self.data.shape, self.labels.shape)
 
