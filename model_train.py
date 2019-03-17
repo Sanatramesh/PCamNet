@@ -17,8 +17,8 @@ class ModelTraining:
     def train_model(self):
         print ( 'Training Model: %s ... ' % self.model.get_name() )
 
-        # train model for one epoch - call fn model.train_batch(data) for each batch
-        for epoch in range( 1 ):#self.num_epochs ):
+        # train model for one epoch - call fn model.train_batch(data, label) for each batch
+        for epoch in range( self.num_epochs ):
             training_loss  = 0.0
             training_count = 0
 

@@ -16,6 +16,7 @@ def _pickle_method(m):
 
 copy_reg.pickle(types.MethodType, _pickle_method)
 
+
 class PCamNetVGGModel(th.nn.Module):
 
     def __init__(self, num_classes=10, freeze_encoder = False):
