@@ -44,7 +44,6 @@ class CIFAR10Loader(Dataset):
                 ['test_batch', '40351d587109b95175f43aff81a1287e'],
             ]
 
-
         for batch in batch_list:
             print(colored('====> ', 'blue') + 'Processing file: ', os.path.join(self.data_path, batch[0]))
             batch = unpickle(os.path.join(self.data_path, batch[0]))
@@ -55,11 +54,9 @@ class CIFAR10Loader(Dataset):
         self.data = np.float32(np.concatenate(self.data))
         self.data = self.data.reshape(self.data.shape[0], 3, 32, 32) #.swapaxes(1, 3).swapaxes(1, 2)
 
-        indices = np.concatenate(self.labels)
-        self.labels = np.zeros((len(indices), 10), dtype=np.float32)
-        self.labels[:, indices] = 1
-
-        print('Data:', self.data.shape, self.labels.shape)
+        self.labels = np.concatenate(self.labels).astype(np.long)
+        
+        print('Data dims, Label dims :', self.data.shape, self.labels.shape)
 
 
 def unpickle(file):
@@ -101,4 +98,4 @@ class PCamLoader(Dataset):
             sample_train = self.transform(sample_train)
             label_train = self.transform(label_train)
 
-        return sample_train,label_train
+        return sample_train, label_train

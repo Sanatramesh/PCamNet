@@ -10,8 +10,9 @@ from model_train import *
 # from model_test import *
 from dataloader import *
 
+
 def main(args):
-    print('Config arguments')
+    print(colored('Config arguments', 'green'))
     print('dataset        :', args.dataset)
     print('mode           :', args.mode)
     print('model wights   :', args.model_weights)
@@ -44,8 +45,11 @@ def main(args):
         train = ModelTraining(net, data_loader,
                                 batch_size = args.batch_size,
                                 epochs = args.epochs)
+
+        if args.output_model != None:
+            train.set_model_save(args.output_model)
+
         train.train_model()
-        train.save_model(args.output_model)
     else:
         test = ModelTesting(net)
         test.test_model()
@@ -64,16 +68,16 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--mode', default='train',
                     help='Specify whether to train or test. (default: train)')
 
-    parser.add_argument('-e', '--epochs', default=100,
+    parser.add_argument('-e', '--epochs', default=100, type=int,
                     help='Specify the number of epochs to train the model. (default: 100)')
 
-    parser.add_argument('-bs', '--batch_size', default=32,
+    parser.add_argument('-bs', '--batch_size', default=32, type=int,
                     help='Specify the training batch size. (default: 32)')
 
-    parser.add_argument('-o', '--output_model', default=32,
-                    help='Specify the file name of the weights file. (default: 32)')
+    parser.add_argument('-o', '--output_model', default=None,
+                    help='Specify the file name of the weights file. (default: None)')
 
-    parser.add_argument('-lr', '--learning_rate', default=1e-4,
+    parser.add_argument('-lr', '--learning_rate', default=1e-4, type=float,
                     help='Specify the learning rate. (default: 1e-4)')
 
     # parser.add_argument('-op', '--optimizer', default="adam",
