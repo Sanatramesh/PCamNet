@@ -4,6 +4,17 @@ import matplotlib.pyplot as plt
 import torch as th
 import torch.utils.model_zoo as model_zoo
 
+import copy_reg
+import types
+import multiprocessing
+
+def _pickle_method(m):
+    if m.im_self is None:
+        return getattr, (m.im_class, m.im_func.func_name)
+    else:
+        return getattr, (m.im_self, m.im_func.func_name)
+
+copy_reg.pickle(types.MethodType, _pickle_method)
 
 class PCamNetVGGModel(th.nn.Module):
 
@@ -43,6 +54,9 @@ class PCamNetVGGModel(th.nn.Module):
                             th.nn.ReLU(inplace=True),
                             th.nn.Linear(256, num_classes)
                         )
+
+        self.loss = th.nn.CrossEntropyLoss()
+
         # self.decoder = th.nn.Sequential(
         #                 th.nn.Conv2d(256, 256, 3, padding = 1),
         #                 th.nn.ReLU(inplace=True),
@@ -62,13 +76,16 @@ class PCamNetVGGModel(th.nn.Module):
 
     def forward(self, img):
         features = self.vgg_encoder(img)
-        print(features.size())
         features = features.view(features.size(0), -1)
         y = self.classifier(features)
         return y
 
     def get_name(self):
         return 'PCamNet: a VGG like model'
+
+    def compute_loss(self, y, y_):
+        celoss = self.loss(y, y_)
+        return celoss
 
 
 class PCamNet(object):
@@ -82,18 +99,12 @@ class PCamNet(object):
         self.model = PCamNetVGGModel()
         print (self.model.get_name(), self.model)
 
-    def loss_func(self, y, y_):
-        loss = th.mean((y - y_) ** 2)
-        return loss
-
     def add_optimizer(self):
         self.optimizer = th.optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr = self.learning_rate)
 
     def train_batch(self, data, labels):
         y = self.model.forward( data )
-
-        print (y.shape, labels.shape)
-        loss = self.loss_func( y, labels )
+        loss = self.model.compute_loss( y, labels )
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -103,7 +114,7 @@ class PCamNet(object):
 
     def compute_loss(self, data, labels):
         y = self.model.forward( data )
-        loss = self.loss_func( y, labels )
+        loss = self.model.compute_loss( y, labels )
 
         return loss.data
 
@@ -114,7 +125,7 @@ class PCamNet(object):
         return labels
 
     def save_model(self, ckpt_file):
-        self.model.save_state_dict(ckpt_file)
+        th.save(self.model.state_dict, ckpt_file)
 
     def load_model(self, ckpt_file = None):
         if ckpt_file != None:
