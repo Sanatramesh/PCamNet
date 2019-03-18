@@ -13,27 +13,31 @@ from dataloader import *
 
 def main(args):
     print(colored('Config arguments', 'green'))
-    print('dataset        :', args.dataset)
-    print('mode           :', args.mode)
-    print('model wights   :', args.model_weights)
-    print('no epochs      :', args.epochs)
-    print('batch size     :', args.batch_size)
-    print('save weights   :', args.output_model)
+    print('dataset         :', args.dataset)
+    print('mode            :', args.mode)
+    print('model weights   :', args.model_weights)
+    print('no epochs       :', args.epochs)
+    print('batch size      :', args.batch_size)
+    print('optimizer       :', args.optimizer)
+    print('learning rate   :', args.learning_rate)
+    print('neural net arch :', args.neural_network)
+    print('save weights    :', args.output_model)
 
     # init dataloader
     data_loader = None
 
     if args.dataset == 'cifar10':
-        data_set = CIFAR10Loader()
+        data_set = CIFAR10Loader(mode=args.mode)
+        net = PCamNet([32, 32, 3], 10, learning_rate = 1e-4)
     else:
-        data_set = PCamLoader()
+        data_set = PCamLoader(mode=args.mode)
+        net = PCamNet([32, 32, 3], 2, learning_rate = 1e-4)
 
     data_loader = data.DataLoader(data_set, batch_size=args.batch_size,
                                     shuffle=True, num_workers=4)
 
     # Create model and load weights
-    net = PCamNet([32, 32, 3], [1], learning_rate = 1e-4)
-    net.build_model()
+    net.build_model(type=args.neural_network)
     net.load_model(args.model_weights)
 
     # Setup model training/testing
@@ -50,9 +54,22 @@ def main(args):
             train.set_model_save(args.output_model)
 
         train.train_model()
-    else:
+
+    elif args.mode == 'valid':
+        net.add_optimizer()
+        train = ModelTraining(net, data_loader,
+                                batch_size = args.batch_size,
+                                epochs = args.epochs)
+        if args.output_model != None:
+            train.set_model_save(args.output_model)
+
+        train.train_model()
+
+    elif args.mode == 'test':
         test = ModelTesting(net)
         test.test_model()
+    else:
+        raise Exception('Unknown: mode type - '+args.mode)
 
 
 
@@ -60,13 +77,13 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Parse model training options')
     parser.add_argument('-d', '--dataset', default='cifar10',
-                    help='Dataset to use for training/testing.\n      Options: cifar10 (default), PCam)')
+                    help='Dataset to use for training/testing.\n      Options: cifar10 (default), pcam)')
 
     parser.add_argument('-w', '--model_weights', default=None,
                     help='Specify complete path to the model weights file to load. (default: None)')
 
     parser.add_argument('-m', '--mode', default='train',
-                    help='Specify whether to train or test. (default: train)')
+                    help='Specify whether to train, valid, or test. (default: train)')
 
     parser.add_argument('-e', '--epochs', default=100, type=int,
                     help='Specify the number of epochs to train the model. (default: 100)')
@@ -80,8 +97,13 @@ if __name__ == '__main__':
     parser.add_argument('-lr', '--learning_rate', default=1e-4, type=float,
                     help='Specify the learning rate. (default: 1e-4)')
 
-    # parser.add_argument('-op', '--optimizer', default="adam",
-    #                 help='Specify the learning rate. (Options: adam(default), sgd)')
+    parser.add_argument('-op', '--optimizer', default="adam",
+                    help='Specify the optimizer to use for training.' + \
+                        '\n      Options: adam (default), sgd')
+
+    parser.add_argument('-nn', '--neural_network', default='pcam',
+                    help='Neural network architecture to use for training/testing.'+ \
+                        '\n      Options: pcam (default), siamese_pcam')
 
     args = parser.parse_args()
     print(args)

@@ -5,7 +5,7 @@ import numpy as np
 
 class ModelTraining:
 
-    def __init__(self, model, data_loader, batch_size = 10, epochs = 20, model_ckpt_file = 'model/PCamNet.pt'):
+    def __init__(self, model, data_loader, batch_size = 10, epochs = 20, model_ckpt_file = 'model/PCamNet'):
         self.model = model
         self.data_loader = data_loader # List of tuple: (left_cam, right_cam, disp_map) filenames
         self.batch_size = batch_size
@@ -29,8 +29,6 @@ class ModelTraining:
             t1 = time.time()
 
             for batch_data, batch_labels in self.data_loader:
-                if training_count + validation_count > 10:
-                    break
 
                 if training_count <= 0.8 * self.num_batch:
                     training_loss  += self.model.train_batch( batch_data, batch_labels )
@@ -47,7 +45,7 @@ class ModelTraining:
 
             print ()
 
-            print ( 'epoch: %4d    train loss: %20.4f     val loss: %20.4f' %
+            print ( 'epoch: %4d    train loss: %20.6f     val loss: %20.6f' %
                                     ( epoch, training_loss / training_count,
                                              validation_loss / validation_count ) )
 
@@ -55,12 +53,12 @@ class ModelTraining:
             print('time for completion:', np.round((t2 - t1) * (self.num_epochs - epoch) / 60, 2), 'm')
             print ('')
 
-            self.model.save_model( self.model_ckpt_file )
+            self.model.save_model( self.model_ckpt_file + '.pth')
 
         print ( 'Training Model: %s ... Complete' % self.model.get_name() )
         print ( 'Saving stats into model/stats.pkl')
         # np.save('model/stats.npy', self.train_stats)
-        pickle.dump(self.train_stats, open('model/stats.pkl','wb'))
+        pickle.dump(self.train_stats, open(self.model_ckpt_file+'_stats.pkl','wb'))
 
         return 0
 
