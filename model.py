@@ -41,9 +41,6 @@ class PCamNetVGGModel(th.nn.Module):
                             th.nn.MaxPool2d(kernel_size=2, stride=2)
                         )
 
-        # state_dict = model_zoo.load_url('https://download.pytorch.org/models/vgg16-397923af.pth')
-        # self.vgg_encoder.load_state_dict(state_dict, strict = False)
-
         if freeze_encoder:
             for param in self.vgg_encoder.parameters():
                 param.requires_grad = False
@@ -57,23 +54,6 @@ class PCamNetVGGModel(th.nn.Module):
                         )
 
         self.loss = th.nn.CrossEntropyLoss()
-
-        # self.decoder = th.nn.Sequential(
-        #                 th.nn.Conv2d(256, 256, 3, padding = 1),
-        #                 th.nn.ReLU(inplace=True),
-        #                 th.nn.ConvTranspose2d(256, 256, 4, stride = 2, padding = 1),
-        #
-        #                 th.nn.Conv2d(256, 128, 3, padding = 1),
-        #                 th.nn.ReLU(inplace=True),
-        #                 th.nn.ConvTranspose2d(128, 128, 4, stride = 2, padding = 1),
-        #
-        #                 th.nn.Conv2d(128, 64, 3, padding = 1),
-        #                 th.nn.ReLU(inplace=True),
-        #                 th.nn.ConvTranspose2d(64, 64, 4, stride = 2, padding = 1),
-        #
-        #                 th.nn.Conv2d(64, 1, 3, padding = 1),
-        #                 th.nn.ReLU(inplace=True)
-        #             )
 
     def forward(self, img):
         features = self.vgg_encoder(img)
@@ -89,15 +69,45 @@ class PCamNetVGGModel(th.nn.Module):
         return celoss
 
 
+class PCamNetVGGSiameseModel(PCamNetVGGModel):
+
+    def __init__(self, num_classes=2, freeze_encoder = False):
+        super(PCamNetVGGSiameseModel, self).__init__(num_classes, freeze_encoder)
+
+    def forward_once(self, img):
+        features = self.vgg_encoder(img)
+        features = features.view(features.size(0), -1)
+        y = self.classifier(features)
+        return y
+
+    def forward(self, img):
+        y1 = self.forward_once(img)
+        y2 = self.forward_once(img)
+        return y1, y2
+
+    def get_name(self):
+        return 'PCamNet: Siamese net with VGG like encoder'
+
+    def compute_loss(self, y, y_):
+        celoss = self.loss(y, y_)
+        return celoss
+
+
 class PCamNet(object):
 
-    def __init__(self, input_dims, output_dims, learning_rate = 1e-4):
+    def __init__(self, input_dims, num_classes, learning_rate = 1e-4):
         self.input_dims = input_dims
-        self.output_dims = output_dims
+        self.num_classes = num_classes
         self.learning_rate = learning_rate
 
-    def build_model(self):
-        self.model = PCamNetVGGModel()
+    def build_model(self, type='siamese_pcam'):
+        if type == 'pcam':
+            self.model = PCamNetVGGModel(num_classes=self.num_classes)
+        elif type == 'siamese_pcam':
+            self.model = PCamNetVGGSiameseModel(num_classes=self.num_classes)
+        else:
+            raise Exception('Unknown: model type(Options: pcam, siamese_pcam)')
+
         print (self.model.get_name(), self.model)
 
     def add_optimizer(self):
