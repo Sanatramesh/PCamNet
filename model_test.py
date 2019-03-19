@@ -1,43 +1,37 @@
-
-
+import pickle
+import torch as th
 
 
 class ModelTesting:
 
-    def __init__(self, model, data_files, save_dir = 'test_out'):
+    def __init__(self, model, data_loader, test_file = 'model/PCamNet'):
         self.model = model
-        self.test_data_files = data_files # List of tuple: (left_cam, right_cam, disp_map) filenames
-        self.dir_out = save_dir
+        self.data_loader = data_loader # List of tuple: (left_cam, right_cam, disp_map) filenames
+        self.test_file = test_file
 
     def test_model(self):
-        directory = self.dir_out + '/' + datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M')
-        os.makedirs(directory)
+        print( 'Testing model:', self.model.get_name() )
+        test_loss  = 0.0
+        test_count = 0
+        true_labels = []
+        pred_labels = []
 
-        print ('Testing model:', self.model.get_name() )
+        softmax = th.nn.Softmax( dim=1 )
+        for batch_data, batch_labels in self.data_loader:
+            labels = self.model.forward_pass( batch_data )
+            test_loss += self.model.compute_loss( batch_data, batch_labels )
 
-        for i, data_file in enumerate(self.test_data_files):
-            data = read_data( [ data_file  ] )
+            true_labels.append(batch_labels)
+            pred_labels.append(th.argmax(softmax(labels), dim=1).numpy())
+            test_count += 1
 
-            disparity_map = self.model.forward_pass( data )
-            test_loss = self.model.compute_loss( data )
+        pickle.dump({'test_loss': test_loss.numpy(),
+                     'test_count': test_count,
+                     'true_labels': true_labels,
+                     'pred_labels': pred_labels
+                     }, open(self.test_file + '_test_stats.pkl','wb'))
 
-            # Save Disparity map
-            print ('data',data[2][0])
-            print ('disp', disparity_map[0])
-            disparity_map = disparity_map[0]
-            h, w = disparity_map.shape[0], disparity_map.shape[1]
-            disparity_map = disparity_map.reshape((h, w))
-            plt.imshow(data[2][0].reshape((h, w)))
-            plt.show()
-            plt.imshow(disparity_map)
-            plt.show()
-            fname = self.test_data_files[i][0].split('.')[0] + '_disp.png'
-            fname = fname.replace('/', '-')
-            fname = directory + '/' + fname
-            imsave(fname, disparity_map)
+        return 0
 
-            print ( 'Test: %4d image: %s loss: %4.4f' %( i, self.test_data_files[i][0] , test_loss ) )
-
-
-    def set_test_data_files(self, files):
-        self.test_data_files = files
+    def set_data_loader(self, data_loader):
+        self.data_loader = data_loader

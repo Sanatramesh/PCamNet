@@ -7,7 +7,7 @@ from torch.utils import data
 
 from model import *
 from model_train import *
-# from model_test import *
+from model_test import *
 from dataloader import *
 
 
@@ -66,7 +66,7 @@ def main(args):
         train.train_model()
 
     elif args.mode == 'test':
-        test = ModelTesting(net)
+        test = ModelTesting(net, data_loader)
         test.test_model()
     else:
         raise Exception('Unknown: mode type - '+args.mode)
