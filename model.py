@@ -74,24 +74,122 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
     def __init__(self, num_classes=2, freeze_encoder = False):
         super(PCamNetVGGSiameseModel, self).__init__(num_classes, freeze_encoder)
 
-    def forward_once(self, img):
-        features = self.vgg_encoder(img)
-        features = features.view(features.size(0), -1)
-        y = self.classifier(features)
-        return y
-
     def forward(self, img):
-        y1 = self.forward_once(img)
-        y2 = self.forward_once(img)
-        return y1, y2
+        embeddings = self.vgg_encoder(img)
+        embeddings = embeddings.view(embeddings.size(0), -1)
+        return embeddings
 
     def get_name(self):
         return 'PCamNet: Siamese net with VGG like encoder'
 
     def compute_loss(self, y, y_):
-        celoss = self.loss(y, y_)
+        celoss = self._compute_batch_all_triplet_loss(y, y_, 10)
+        print('loss:', celoss)
         return celoss
 
+    def _compute_batch_all_triplet_loss(self, embeddings, y_, margin):
+        # Get the pairwise distance matrix
+        print('Labels:', y_)
+        pairwise_dist = self._compute_pairwise_distances(embeddings)
+
+        anchor_pos_dist = pairwise_dist.unsqueeze(2)
+        anchor_neg_dist = pairwise_dist.unsqueeze(1)
+
+        # Compute a 3D tensor of size (batch_size, batch_size, batch_size)
+        triplet_loss = anchor_pos_dist - anchor_neg_dist + margin
+        all_triplet_mask = self._get_all_triplet(y_)
+
+        triplet_loss = th.mul(all_triplet_mask, triplet_loss)
+        # Check to ensure all distances >= 0
+        triplet_loss = th.max(triplet_loss, th.Tensor([0.0]))
+
+        valid_triplets = th.ge(triplet_loss, 1e-16)
+        num_pos_triplets = th.sum(valid_triplets)
+        num_valid_triplets = th.sum(all_triplet_mask)
+        fraction_pos_triplets = num_pos_triplets / (num_valid_triplets + 1e-16)
+        # Compute mean triplet loss over all positive valid triplets
+        triplet_loss = th.sum(triplet_loss) / (num_pos_triplets + 1e-16)
+        return triplet_loss
+
+    def _compute_batch_hard_triplet_loss(self, embeddings, y_, margin):
+        pairwise_dist = self._compute_pairwise_distances(embeddings)
+        anchor_pos_mask = self._get_anchor_positive_triplet(y_)
+
+        anchor_pos_dist = th.mul(anchor_pos_mask, pairwise_dist)
+
+        anchor_hard_pos_dist, _ = th.max(anchor_pos_dist, dim=1, keepdim=True)
+
+        anchor_neg_mask = self._get_anchor_negative_triplet(y_).type(th.FloatTensor)
+
+        max_anchor_neg_dist, _ = th.max(pairwise_dist, dim=1, keepdim=True)
+
+        anchor_neg_dist = pairwise_dist + th.mul(max_anchor_neg_dist, th.eye(1) - anchor_neg_mask)
+
+        anchor_hard_neg_dist, _ = th.min(anchor_neg_dist, dim=1, keepdim=True)
+
+
+        triplet_loss = anchor_hard_pos_dist - anchor_hard_neg_dist + margin
+
+        # Check to ensure all distances >= 0
+        triplet_loss = th.max(triplet_loss, th.Tensor([0.0]))
+
+        # Compute mean triplet loss over hard triplets
+        triplet_loss = th.mean(triplet_loss)
+
+        return triplet_loss
+
+
+    def _compute_pairwise_distances(self, embeddings):
+        # a * b.T
+        dot_product = th.matmul(embeddings, th.t(embeddings))
+        embed_squares = th.diag(dot_product)
+        # pairwise distances
+        # ||a - b||^2 = ||a||^2 - 2a * b.T  + ||b||^2
+        square_distances = embed_squares.view(-1,1) - 2.0 * dot_product + embed_squares.view(1,-1)
+        # Make sure the distances are >= 0
+        square_distances = th.max(square_distances, th.Tensor([0.0]))
+
+        return square_distances
+
+    def _get_anchor_positive_triplet(self, labels):
+        """Returns a 2D mask where mask[a, p] is True iff a and p are distinct and have same label.
+        """
+        # Check pairwise labels are eq, i.e, label[i] == label[j]
+        labels_eq = th.eq(labels.view(-1,1), labels.view(1,-1)).type(th.FloatTensor)
+        # Compute all indices pairs (i,j), where i != j
+        indices_not_eq = 1 - th.eye(labels.shape[0])
+
+        pos_mask =th.mul(labels_eq, indices_not_eq)
+        return pos_mask
+
+
+    def _get_anchor_negative_triplet(self, labels):
+        """Return a 2D mask where mask[a, n] is True iff a and n have distinct labels.
+        """
+        # Check if label[i] != label[j]
+        labels_eq = th.eq(labels.view(-1,1), labels.view(1,-1))
+
+        neg_mask = 1 - labels_eq
+        return neg_mask
+
+    def _get_all_triplet(self, labels):
+        """Return a 2D mask where mask[a, p, n] is True iff (a, p, n) is a valid triplet
+        """
+        indices_not_eq = 1 - th.eye(labels.shape[0])
+        i_not_eq_j = indices_not_eq.unsqueeze(2)
+        i_not_eq_k = indices_not_eq.unsqueeze(1)
+        j_not_eq_k = indices_not_eq.unsqueeze(0)
+
+        distinct_indices = th.mul(th.mul(i_not_eq_j, i_not_eq_k), j_not_eq_k)
+        labels_eq = th.eq(labels.view(-1,1), labels.view(1,-1)).type(th.FloatTensor)
+
+        i_eq_j = labels_eq.unsqueeze(2)
+        i_eq_k = labels_eq.unsqueeze(1)
+
+        valid_labels = th.mul(i_eq_j, th.Tensor([1]) - i_eq_k)
+        all_triplet_mask = th.mul(distinct_indices, valid_labels)
+
+        return all_triplet_mask
 
 class PCamNet(object):
 
@@ -136,7 +234,7 @@ class PCamNet(object):
         return labels
 
     def save_model(self, ckpt_file):
-        th.save(self.model.state_dict, ckpt_file)
+        th.save(self.model.state_dict(), ckpt_file)
 
     def load_model(self, ckpt_file = None):
         if ckpt_file != None:
