@@ -14,6 +14,7 @@ class ModelTesting:
         self.model = model
         self.data_loader = data_loader # List of tuple: (left_cam, right_cam, disp_map) filenames
         self.test_file = test_file
+
         self.model.model.eval()
 
     def test_model(self, args):
@@ -70,8 +71,8 @@ class ModelTesting:
         train_X = np.concatenate(train_X)
         train_y = np.concatenate(train_y)
 
-        np.save(self.test_file + '_train_feats.npy', train_X)
-        np.save(self.test_file + '_train_labels.npy', train_y)
+        np.save(self.test_file + str(args.num_neighbors) +  '_train_feats.npy', train_X)
+        np.save(self.test_file + str(args.num_neighbors) +  '_train_labels.npy', train_y)
 
         print('Computed train features:', train_X.shape, train_y.shape, )
         train_dataloader = None
@@ -91,18 +92,19 @@ class ModelTesting:
 
         t3 = time.time()
         for batch_data, batch_labels in self.data_loader:
+            print('predicting:', knn_count)
             test_X.append( self.model.compute_features( batch_data ).numpy() )
             test_y.append( batch_labels.numpy() )
-            knn_predict.append( knn.predict( test_X[-1] ) )
-            knn_score += knn.score( test_X[-1], test_y[-1] )
+            # knn_predict.append( knn.predict( test_X[-1] ) )
+            # knn_score += knn.score( test_X[-1], test_y[-1] )
             knn_count += 1
 
         t4 = time.time()
         test_X = np.concatenate(test_X)
         test_y = np.concatenate(test_y)
 
-        np.save(self.test_file + '_test_feats.npy', train_X)
-        np.save(self.test_file + '_test_labels.npy', train_y)
+        np.save(self.test_file + str(args.num_neighbors) + '_test_feats.npy', train_X)
+        np.save(self.test_file + str(args.num_neighbors) + '_test_labels.npy', train_y)
 
         print('Computed test features for knn classifier:', test_X.shape, test_y.shape)
 

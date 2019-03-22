@@ -41,11 +41,9 @@ class ModelTraining:
                     validation_count  += 1
                     true_labels.append(batch_labels.numpy())
 
-                if training_count + validation_count>= 10:
-                    break
             t2 = time.time()
             self.train_stats.append([epoch, training_loss.numpy(), training_count,
-                                    validation_loss.numpy(), validation_count, 
+                                    validation_loss.numpy(), validation_count,
                                     validation_predict, true_labels, t2 - t1])
 
             print ()

@@ -270,6 +270,7 @@ class PCamNet(object):
         return labels.cpu()
 
     def compute_features(self, data):
+        data = data.cuda()
         features = self.model.compute_features( data )
         return features.detach().cpu()
 
@@ -279,6 +280,7 @@ class PCamNet(object):
     def load_model(self, ckpt_file = None):
         if ckpt_file != None:
             self.model.load_state_dict(th.load(ckpt_file))
+            print('loaded model:', ckpt_file)
 
     def load_model_encoder(self, ckpt_file):
         if ckpt_file != None:

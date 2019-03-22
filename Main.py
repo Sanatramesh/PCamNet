@@ -34,7 +34,7 @@ def main(args):
         net = PCamNet([32, 32, 3], 2, learning_rate = 1e-4)
 
     data_loader = data.DataLoader(data_set, batch_size=args.batch_size,
-                                    shuffle=True, num_workers=0)
+                                    shuffle=True)
 
     # Create model and load weights
     net.build_model(type=args.neural_network)
@@ -60,7 +60,7 @@ def main(args):
 
     elif args.mode == 'test' or args.mode == 'valid':
         test = ModelTesting(net, data_loader, args.model_weights.split('.')[0])
-        test.test_model()
+        test.test_model(args)
     else:
         raise Exception('Unknown: mode type - '+args.mode)
 
