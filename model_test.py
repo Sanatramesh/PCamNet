@@ -47,6 +47,7 @@ class ModelTesting:
                      'pred_labels': pred_labels
                      }, open(self.test_file + '_test_stats.pkl','wb'))
 
+        print('Test loss:', test_loss.numpy()/test_count)
         return 0
 
 

@@ -25,13 +25,14 @@ class ModelTraining:
             validation_loss    = 0.0
             validation_count   = 0
             validation_predict = []
+            true_labels = []
 
             true_labels = []
             t1 = time.time()
 
             for batch_data, batch_labels in self.data_loader:
 
-                if training_count <= 8:#0.8 * self.num_batch:
+                if training_count <= 0.8 * self.num_batch:
                     training_loss  += self.model.train_batch( batch_data, batch_labels )
                     training_count += 1
                 else:
@@ -54,15 +55,15 @@ class ModelTraining:
                                              validation_loss / validation_count ) )
 
             print('epoch time:', np.round(t2 - t1, 2), 's')
-            print('time for completion:', np.round((t2 - t1) * (self.num_epochs - epoch) / 60, 2), 'm')
+            print('time for completion:', np.round((t2 - t1) * (self.num_epochs - epoch - 1) / 60, 2), 'm')
             print ('')
 
             self.model.save_model( self.model_ckpt_file + '.pth')
 
+            pickle.dump(self.train_stats, open(self.model_ckpt_file+'_stats.pkl','wb'))
+
         print ( 'Training Model: %s ... Complete' % self.model.get_name() )
         print ( 'Saving stats into model/stats.pkl')
-        # np.save('model/stats.npy', self.train_stats)
-        pickle.dump(self.train_stats, open(self.model_ckpt_file+'_stats.pkl','wb'))
 
         return 0
 

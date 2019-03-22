@@ -34,7 +34,7 @@ def main(args):
         net = PCamNet([32, 32, 3], 2, learning_rate = 1e-4)
 
     data_loader = data.DataLoader(data_set, batch_size=args.batch_size,
-                                    shuffle=True, num_workers=4)
+                                    shuffle=True, num_workers=0)
 
     # Create model and load weights
     net.build_model(type=args.neural_network)
@@ -58,21 +58,23 @@ def main(args):
 
         train.train_model()
 
-    elif args.mode == 'valid':
-        net.add_optimizer()
-        train = ModelTraining(net, data_loader,
-                                batch_size = args.batch_size,
-                                epochs = args.epochs)
-        if args.output_model != None:
-            train.set_model_save(args.output_model)
-
-        train.train_model()
-
-    elif args.mode == 'test':
-        test = ModelTesting(net, data_loader)
-        test.test_model(args)
+    elif args.mode == 'test' or args.mode == 'valid':
+        test = ModelTesting(net, data_loader, args.model_weights.split('.')[0])
+        test.test_model()
     else:
         raise Exception('Unknown: mode type - '+args.mode)
+
+    # elif args.mode == 'valid':
+    #     net.add_optimizer()
+    #     train = ModelTraining(net, data_loader,
+    #                             batch_size = args.batch_size,
+    #                             epochs = args.epochs)
+    #     if args.output_model != None:
+    #         train.set_model_save(args.output_model)
+    #
+    #     train.train_model()
+
+
 
 
 

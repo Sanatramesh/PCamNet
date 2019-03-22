@@ -1,10 +1,9 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 import torch as th
 import torch.utils.model_zoo as model_zoo
 
-import copy_reg
+import copyreg
 import types
 import multiprocessing
 
@@ -14,7 +13,7 @@ def _pickle_method(m):
     else:
         return getattr, (m.im_self, m.im_func.func_name)
 
-copy_reg.pickle(types.MethodType, _pickle_method)
+copyreg.pickle(types.MethodType, _pickle_method)
 
 
 class PCamNetVGGModel(th.nn.Module):
@@ -24,21 +23,39 @@ class PCamNetVGGModel(th.nn.Module):
         self.vgg_encoder = th.nn.Sequential(
                             th.nn.Conv2d(3, 64, kernel_size=3, padding=1),
                             th.nn.ReLU(inplace=True),
+                            th.nn.Dropout(0.3),
                             th.nn.Conv2d(64, 64, kernel_size=3, padding=1),
                             th.nn.ReLU(inplace=True),
                             th.nn.MaxPool2d(kernel_size=2, stride=2),
+                            #th.nn.BatchNorm2d(64),
 
                             th.nn.Conv2d(64, 128, kernel_size=3, padding=1),
                             th.nn.ReLU(inplace=True),
+                            th.nn.Dropout(0.3),
                             th.nn.Conv2d(128, 128, kernel_size=3, padding=1),
                             th.nn.ReLU(inplace=True),
                             th.nn.MaxPool2d(kernel_size=2, stride=2),
+                            #th.nn.BatchNorm2d(128),
 
                             th.nn.Conv2d(128, 256, kernel_size=3, padding=1),
                             th.nn.ReLU(inplace=True),
+                            th.nn.Dropout(0.3),
                             th.nn.Conv2d(256, 256, kernel_size=3, padding=1),
                             th.nn.ReLU(inplace=True),
-                            th.nn.MaxPool2d(kernel_size=2, stride=2)
+                            th.nn.MaxPool2d(kernel_size=2, stride=2),
+                            #th.nn.BatchNorm2d(256),
+
+                            th.nn.Conv2d(256, 512, kernel_size=3, padding=1),
+                            th.nn.ReLU(inplace=True),
+                            th.nn.Dropout(0.3),
+                            th.nn.Conv2d(512, 512, kernel_size=3, padding=1),
+                            th.nn.ReLU(inplace=True),
+                            th.nn.MaxPool2d(kernel_size=2, stride=2),
+                            #th.nn.BatchNorm2d(512),
+
+                            th.nn.Conv2d(512, 512, kernel_size=3, padding=1),
+                            th.nn.ReLU(inplace=True),
+                            th.nn.MaxPool2d(kernel_size=2, stride=2),
                         )
 
         if freeze_encoder:
@@ -46,9 +63,9 @@ class PCamNetVGGModel(th.nn.Module):
                 param.requires_grad = False
 
         self.classifier = th.nn.Sequential(
-                            # th.nn.Dropout(0.5),  # classifier:add(nn.Dropout(0.5))
-                            th.nn.Linear(4096, 256),
-                            # th.nn.BatchNorm1d(512),  # classifier:add(nn.BatchNormalization(512))
+                            th.nn.Dropout(0.25),  # classifier:add(nn.Dropout(0.5))
+                            th.nn.Linear(512,256),
+                            #th.nn.BatchNorm1d(256),  # classifier:add(nn.BatchNormalization(512))
                             th.nn.ReLU(inplace=True),
                             th.nn.Linear(256, num_classes)
                         )
@@ -79,9 +96,11 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
 
     def __init__(self, num_classes=2, freeze_encoder = False):
         super(PCamNetVGGSiameseModel, self).__init__(num_classes, freeze_encoder)
+        self.sigmoid = th.nn.Sigmoid()
 
     def forward(self, img):
         embeddings = self.vgg_encoder(img)
+        embeddings = self.sigmoid(embeddings)
         embeddings = embeddings.view(embeddings.size(0), -1)
         embeddings = th.nn.functional.normalize(embeddings, dim=1)
         return embeddings
@@ -90,13 +109,13 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
         return 'PCamNet: Siamese net with VGG like encoder'
 
     def compute_loss(self, y, y_):
-        celoss = self._compute_batch_all_triplet_loss(y, y_, 10)
-        print('loss:', celoss)
+        celoss = self._compute_batch_all_triplet_loss(y, y_, 0.2)
+        # celoss = self._compute_batch_hard_triplet_loss(y, y_, 0.2)
+
         return celoss
 
     def _compute_batch_all_triplet_loss(self, embeddings, y_, margin):
         # Get the pairwise distance matrix
-        print('Labels:', y_)
         pairwise_dist = self._compute_pairwise_distances(embeddings)
 
         anchor_pos_dist = pairwise_dist.unsqueeze(2)
@@ -108,29 +127,31 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
 
         triplet_loss = th.mul(all_triplet_mask, triplet_loss)
         # Check to ensure all distances >= 0
-        triplet_loss = th.max(triplet_loss, th.Tensor([0.0]))
+        triplet_loss = th.max(triplet_loss, th.Tensor([0.0]).cuda())
 
-        valid_triplets = th.ge(triplet_loss, 1e-16)
+        valid_triplets = th.ge(triplet_loss, 1e-16).type(th.cuda.FloatTensor)
         num_pos_triplets = th.sum(valid_triplets)
         num_valid_triplets = th.sum(all_triplet_mask)
+
         fraction_pos_triplets = num_pos_triplets / (num_valid_triplets + 1e-16)
         # Compute mean triplet loss over all positive valid triplets
+
         triplet_loss = th.sum(triplet_loss) / (num_pos_triplets + 1e-16)
         return triplet_loss
 
     def _compute_batch_hard_triplet_loss(self, embeddings, y_, margin):
         pairwise_dist = self._compute_pairwise_distances(embeddings)
-        anchor_pos_mask = self._get_anchor_positive_triplet(y_)
+        anchor_pos_mask = self._get_anchor_positive_triplet(y_).type(th.cuda.FloatTensor)
 
         anchor_pos_dist = th.mul(anchor_pos_mask, pairwise_dist)
 
         anchor_hard_pos_dist, _ = th.max(anchor_pos_dist, dim=1, keepdim=True)
 
-        anchor_neg_mask = self._get_anchor_negative_triplet(y_).type(th.FloatTensor)
+        anchor_neg_mask = self._get_anchor_negative_triplet(y_).type(th.cuda.FloatTensor)
 
         max_anchor_neg_dist, _ = th.max(pairwise_dist, dim=1, keepdim=True)
 
-        anchor_neg_dist = pairwise_dist + th.mul(max_anchor_neg_dist, th.eye(1) - anchor_neg_mask)
+        anchor_neg_dist = pairwise_dist + th.mul(max_anchor_neg_dist, th.eye(1).cuda() - anchor_neg_mask)
 
         anchor_hard_neg_dist, _ = th.min(anchor_neg_dist, dim=1, keepdim=True)
 
@@ -138,7 +159,7 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
         triplet_loss = anchor_hard_pos_dist - anchor_hard_neg_dist + margin
 
         # Check to ensure all distances >= 0
-        triplet_loss = th.max(triplet_loss, th.Tensor([0.0]))
+        triplet_loss = th.max(triplet_loss, th.Tensor([0.0]).cuda())
 
         # Compute mean triplet loss over hard triplets
         triplet_loss = th.mean(triplet_loss)
@@ -154,7 +175,7 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
         # ||a - b||^2 = ||a||^2 - 2a * b.T  + ||b||^2
         square_distances = embed_squares.view(-1,1) - 2.0 * dot_product + embed_squares.view(1,-1)
         # Make sure the distances are >= 0
-        square_distances = th.max(square_distances, th.Tensor([0.0]))
+        square_distances = th.max(square_distances, th.Tensor([0.0]).cuda())
 
         return square_distances
 
@@ -182,18 +203,18 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
     def _get_all_triplet(self, labels):
         """Return a 2D mask where mask[a, p, n] is True iff (a, p, n) is a valid triplet
         """
-        indices_not_eq = 1 - th.eye(labels.shape[0])
+        indices_not_eq = th.Tensor([1]).cuda() - th.eye(labels.shape[0]).cuda()
         i_not_eq_j = indices_not_eq.unsqueeze(2)
         i_not_eq_k = indices_not_eq.unsqueeze(1)
         j_not_eq_k = indices_not_eq.unsqueeze(0)
 
         distinct_indices = th.mul(th.mul(i_not_eq_j, i_not_eq_k), j_not_eq_k)
-        labels_eq = th.eq(labels.view(-1,1), labels.view(1,-1)).type(th.FloatTensor)
+        labels_eq = th.eq(labels.view(-1,1).cuda(), labels.view(1,-1).cuda()).type(th.cuda.FloatTensor)
 
         i_eq_j = labels_eq.unsqueeze(2)
         i_eq_k = labels_eq.unsqueeze(1)
 
-        valid_labels = th.mul(i_eq_j, th.Tensor([1]) - i_eq_k)
+        valid_labels = th.mul(i_eq_j, th.Tensor([1]).cuda() - i_eq_k)
         all_triplet_mask = th.mul(distinct_indices, valid_labels)
 
         return all_triplet_mask
@@ -213,12 +234,16 @@ class PCamNet(object):
         else:
             raise Exception('Unknown: model type(Options: pcam, siamese_pcam)')
 
+        self.model = self.model.cuda()
         print (self.model.get_name(), self.model)
 
     def add_optimizer(self):
         self.optimizer = th.optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr = self.learning_rate)
 
     def train_batch(self, data, labels):
+        data = data.cuda()
+        labels = labels.cuda()
+
         y = self.model.forward( data )
         loss = self.model.compute_loss( y, labels )
 
@@ -226,19 +251,23 @@ class PCamNet(object):
         loss.backward()
         self.optimizer.step()
 
-        return loss.data
+        return loss.data.cpu()
 
     def compute_loss(self, data, labels):
+        data = data.cuda()
+        labels = labels.cuda()
+
         y = self.model.forward( data )
         loss = self.model.compute_loss( y, labels )
 
-        return loss.data
+        return loss.data.cpu()
 
     def forward_pass(self, data):
+        data = data.cuda()
         y = self.model.forward( data )
         labels = y.data
 
-        return labels
+        return labels.cpu()
 
     def compute_features(self, data):
         features = self.model.compute_features( data )

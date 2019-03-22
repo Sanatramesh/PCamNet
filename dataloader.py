@@ -65,7 +65,7 @@ class CIFAR10Loader(Dataset):
 
 def unpickle(file):
     with open(file, 'rb') as fp:
-        dict = pickle.load(fp)
+        dict = pickle.load(fp, encoding='bytes')
 
     return dict
 
@@ -116,8 +116,8 @@ class PCamLoader(Dataset):
 
         self.data = np.array(extract_hdf5(
                                 os.path.join(self.data_path, data_file)
-                                )['x'],
-                            dtype=np.float32).swapaxes(1, 3)[:,:,32:64,32:64]
+                                )['x'][:,32:64, 32:64, :],
+                            dtype=np.float32).swapaxes(1, 2).swapaxes(1,3)
 
         self.labels = np.array(
                             extract_hdf5(os.path.join(self.data_path, label_file))['y'],
