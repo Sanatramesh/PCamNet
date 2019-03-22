@@ -61,6 +61,12 @@ class PCamNetVGGModel(th.nn.Module):
         y = self.classifier(features)
         return y
 
+    def compute_features(self, img):
+        features = self.vgg_encoder(img)
+        features = features.view(features.size(0), -1)
+        features = th.nn.functional.normalize(features, dim=1)
+        return features
+
     def get_name(self):
         return 'PCamNet: a VGG like model'
 
@@ -77,6 +83,7 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
     def forward(self, img):
         embeddings = self.vgg_encoder(img)
         embeddings = embeddings.view(embeddings.size(0), -1)
+        embeddings = th.nn.functional.normalize(embeddings, dim=1)
         return embeddings
 
     def get_name(self):
@@ -233,12 +240,21 @@ class PCamNet(object):
 
         return labels
 
+    def compute_features(self, data):
+        features = self.model.compute_features( data )
+        return features.detach().cpu()
+
     def save_model(self, ckpt_file):
         th.save(self.model.state_dict(), ckpt_file)
 
     def load_model(self, ckpt_file = None):
         if ckpt_file != None:
             self.model.load_state_dict(th.load(ckpt_file))
+
+    def load_model_encoder(self, ckpt_file):
+        if ckpt_file != None:
+            self.model.vgg_encoder.load_state_dict(th.load(ckpt_file), strict=False)
+            print('loaded encoder ...')
 
     def get_name(self):
         return self.model.get_name()
