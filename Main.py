@@ -38,7 +38,10 @@ def main(args):
 
     # Create model and load weights
     net.build_model(type=args.neural_network)
-    net.load_model(args.model_weights)
+    if args.classification == 'knn':
+        net.load_model_encoder(args.model_weights)
+    else:
+        net.load_model(args.model_weights)
 
     # Setup model training/testing
     train = None
@@ -67,7 +70,7 @@ def main(args):
 
     elif args.mode == 'test':
         test = ModelTesting(net, data_loader)
-        test.test_model()
+        test.test_model(args)
     else:
         raise Exception('Unknown: mode type - '+args.mode)
 
@@ -104,6 +107,14 @@ if __name__ == '__main__':
     parser.add_argument('-nn', '--neural_network', default='pcam',
                     help='Neural network architecture to use for training/testing.'+ \
                         '\n      Options: pcam (default), siamese_pcam')
+
+    parser.add_argument('-c', '--classification', default='',
+                    help='Classification method to apply while testing.'+ \
+                        '\n      Options: '' (default), knn')
+
+    parser.add_argument('-ng', '--num_neighbors', default=1, type=int,
+                    help='Number of neighbors to use for KNN classifier.')
+
 
     args = parser.parse_args()
     print(args)
