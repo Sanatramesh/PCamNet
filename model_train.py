@@ -26,22 +26,26 @@ class ModelTraining:
             validation_count   = 0
             validation_predict = []
 
+            true_labels = []
             t1 = time.time()
 
             for batch_data, batch_labels in self.data_loader:
 
-                if training_count <= 0.8 * self.num_batch:
+                if training_count <= 8:#0.8 * self.num_batch:
                     training_loss  += self.model.train_batch( batch_data, batch_labels )
                     training_count += 1
                 else:
-                    validation_loss    = self.model.compute_loss( batch_data, batch_labels )
-                    validation_predict = self.model.forward_pass( batch_data )
+                    validation_loss   += self.model.compute_loss( batch_data, batch_labels )
+                    validation_predict.append(self.model.forward_pass( batch_data ).numpy())
                     validation_count  += 1
+                    true_labels.append(batch_labels.numpy())
 
+                if training_count + validation_count>= 10:
+                    break
             t2 = time.time()
             self.train_stats.append([epoch, training_loss.numpy(), training_count,
-                                    validation_loss.numpy(), validation_count,
-                                    validation_predict.numpy(), t2 - t1])
+                                    validation_loss.numpy(), validation_count, 
+                                    validation_predict, true_labels, t2 - t1])
 
             print ()
 
