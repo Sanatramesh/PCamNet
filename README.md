@@ -11,8 +11,7 @@ Experiments on transfer learning, and triplet loss on PatchCamelyon(PCam) datase
 
 2.Run the script inside a container by using the command:
 
-```docker run -it --runtime=nvidia --ipc=host --user="$(id -u):$(id -g)" --volume=$PWD:/workspace <image name> python3 Main.py
-```
+```docker run -it --runtime=nvidia --ipc=host --user="$(id -u):$(id -g)" --volume=$PWD:/workspace <image name> python3 Main.py```
 
 ## Running the Code
 
