@@ -7,13 +7,13 @@ import copyreg
 import types
 import multiprocessing
 
-def _pickle_method(m):
-    if m.im_self is None:
-        return getattr, (m.im_class, m.im_func.func_name)
-    else:
-        return getattr, (m.im_self, m.im_func.func_name)
-
-copyreg.pickle(types.MethodType, _pickle_method)
+# def _pickle_method(m):
+#     if m.im_self is None:
+#         return getattr, (m.im_class, m.im_func.func_name)
+#     else:
+#         return getattr, (m.im_self, m.im_func.func_name)
+#
+# copyreg.pickle(types.MethodType, _pickle_method)
 
 
 class PCamNetVGGModel(th.nn.Module):
@@ -98,6 +98,13 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
         super(PCamNetVGGSiameseModel, self).__init__(num_classes, freeze_encoder)
         self.sigmoid = th.nn.Sigmoid()
 
+    def compute_features(self, img):
+        features = self.vgg_encoder(img)
+        features = self.sigmoid(features)
+        features = features.view(features.size(0), -1)
+        features = th.nn.functional.normalize(features, dim=1)
+        return features
+
     def forward(self, img):
         embeddings = self.vgg_encoder(img)
         embeddings = self.sigmoid(embeddings)
@@ -133,10 +140,10 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
         num_pos_triplets = th.sum(valid_triplets)
         num_valid_triplets = th.sum(all_triplet_mask)
 
-        fraction_pos_triplets = num_pos_triplets / (num_valid_triplets + 1e-16)
+        fraction_pos_triplets = num_pos_triplets / (num_valid_triplets + th.Tensor([1e-16]).cuda())
         # Compute mean triplet loss over all positive valid triplets
 
-        triplet_loss = th.sum(triplet_loss) / (num_pos_triplets + 1e-16)
+        triplet_loss = th.sum(triplet_loss) / (num_pos_triplets + th.Tensor([1e-16]).cuda())
         return triplet_loss
 
     def _compute_batch_hard_triplet_loss(self, embeddings, y_, margin):
@@ -167,7 +174,7 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
         return triplet_loss
 
 
-    def _compute_pairwise_distances(self, embeddings):
+    def _compute_pairwise_distances(self, embeddings, squared=False):
         # a * b.T
         dot_product = th.matmul(embeddings, th.t(embeddings))
         embed_squares = th.diag(dot_product)
@@ -176,6 +183,13 @@ class PCamNetVGGSiameseModel(PCamNetVGGModel):
         square_distances = embed_squares.view(-1,1) - 2.0 * dot_product + embed_squares.view(1,-1)
         # Make sure the distances are >= 0
         square_distances = th.max(square_distances, th.Tensor([0.0]).cuda())
+
+        if not squared:
+            mask = th.eq(square_distances, 0.0).type(th.cuda.FloatTensor)
+            square_distances = square_distances + mask * th.Tensor([1e-16]).cuda()
+
+            square_distances = th.sqrt(square_distances)
+            square_distances = th.mul(square_distances, 1.0 - mask)
 
         return square_distances
 
