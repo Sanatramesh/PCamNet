@@ -1,10 +1,12 @@
+import os
 import pickle
 import torch as th
 from torch.utils import data
 import time
+from copy import deepcopy
 
 from sklearn.neighbors import KNeighborsClassifier
-
+from sklearn.metrics import accuracy_score
 from dataloader import *
 
 
@@ -52,11 +54,38 @@ class ModelTesting:
         return 0
 
 
-    def _knn_classifier(self, args):
+    def _compute_embeddings(self, args):
+
+        # Check if we have already computed the embeddings
+        if os.path.isfile(self.test_file + '_train_feats.npy') and \
+            os.path.isfile(self.test_file + '_test_feats.npy'):
+            print('Embeddings already computed at model/*.npy')
+            return 0
+
+
         if args.dataset == 'cifar10':
             data_set = CIFAR10Loader(mode='train')
         else:
             data_set = PCamLoader(mode='train')
+
+
+
+        test_X = []
+        test_y = []
+
+        t3 = time.time()
+        for batch_data, batch_labels in self.data_loader:
+            test_X.append( deepcopy(self.model.compute_features( batch_data ).numpy()) )
+            test_y.append( deepcopy(batch_labels).numpy() )
+
+        t4 = time.time()
+        test_X = np.concatenate(test_X)
+        test_y = np.concatenate(test_y)
+
+        np.save(self.test_file + '_test_feats.npy', test_X)
+        np.save(self.test_file + '_test_labels.npy', test_y)
+
+        print('Computed test features for knn classifier:', test_X.shape, test_y.shape)
 
         train_dataloader = data.DataLoader(data_set, batch_size=args.batch_size,
                                         shuffle=False)
@@ -71,11 +100,21 @@ class ModelTesting:
         train_X = np.concatenate(train_X)
         train_y = np.concatenate(train_y)
 
-        np.save(self.test_file + str(args.num_neighbors) +  '_train_feats.npy', train_X)
-        np.save(self.test_file + str(args.num_neighbors) +  '_train_labels.npy', train_y)
+        np.save(self.test_file +  '_train_feats.npy', train_X)
+        np.save(self.test_file + '_train_labels.npy', train_y)
 
         print('Computed train features:', train_X.shape, train_y.shape, )
         train_dataloader = None
+
+        return 0
+
+
+    def _knn_classifier(self, args):
+
+        self._compute_embeddings(args)
+
+        train_X = np.load(self.test_file + '_train_feats.npy')
+        train_y = np.load(self.test_file + '_train_labels.npy')
 
         t1 = time.time()
         knn = KNeighborsClassifier(n_neighbors=args.num_neighbors)
@@ -84,31 +123,28 @@ class ModelTesting:
 
         print('Fitted KNN model', 'Fit model time:', (t2-t1))
 
-        test_X = []
-        test_y = []
+        test_X = np.load(self.test_file + '_test_feats.npy')
+        test_y = np.load(self.test_file + '_test_labels.npy')
+
         knn_predict = []
         knn_score = 0.0
         knn_count = 0
-
+        bs = args.batch_size
+        print('Dims:', test_X.shape, test_y.shape)
         t3 = time.time()
-        for batch_data, batch_labels in self.data_loader:
-            print('predicting:', knn_count)
-            test_X.append( self.model.compute_features( batch_data ).numpy() )
-            test_y.append( batch_labels.numpy() )
+        for idx in range(0, test_y.shape[0], bs):
+            print('predicting:', knn_count,idx,bs)
+            knn_predict.append([0.0, knn.predict(test_X[idx:idx+bs])])
+            acc = accuracy_score(knn_predict[-1][1], test_y[idx:idx+bs])
+            knn_predict[-1][0] = acc
             # knn_predict.append( knn.predict( test_X[-1] ) )
             # knn_score += knn.score( test_X[-1], test_y[-1] )
             knn_count += 1
 
         t4 = time.time()
-        test_X = np.concatenate(test_X)
-        test_y = np.concatenate(test_y)
 
-        np.save(self.test_file + str(args.num_neighbors) + '_test_feats.npy', train_X)
-        np.save(self.test_file + str(args.num_neighbors) + '_test_labels.npy', train_y)
-
-        print('Computed test features for knn classifier:', test_X.shape, test_y.shape)
-
-        print('Score:', knn_score/knn_count, 'Pred time:', (t4-t3))
+        print('Score:', acc/knn_count, 'Pred time:', (t4-t3))
+        pickle.dump(knn_predict, open(self.test_file +'_knn_'+ str(args.num_neighbors) + '_test_stats.pkl','wb'))
         return 0
 
     def set_data_loader(self, data_loader):
