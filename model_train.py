@@ -1,7 +1,7 @@
 import time
 import pickle
 import numpy as np
-
+from copy import deepcopy
 
 class ModelTraining:
 
@@ -37,9 +37,9 @@ class ModelTraining:
                     training_count += 1
                 else:
                     validation_loss   += self.model.compute_loss( batch_data, batch_labels )
-                    validation_predict.append(self.model.forward_pass( batch_data ).numpy())
+                    # validation_predict.append(self.model.forward_pass( batch_data ).numpy())
                     validation_count  += 1
-                    true_labels.append(batch_labels.numpy())
+                    # true_labels.append(deepcopy(batch_labels).numpy())
 
             t2 = time.time()
             self.train_stats.append([epoch, training_loss.numpy(), training_count,

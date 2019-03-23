@@ -5,7 +5,6 @@ import numpy as np
 from termcolor import colored
 
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
 
 
 class CIFAR10Loader(Dataset):

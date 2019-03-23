@@ -34,7 +34,7 @@ def main(args):
         net = PCamNet([32, 32, 3], 2, learning_rate = 1e-4)
 
     data_loader = data.DataLoader(data_set, batch_size=args.batch_size,
-                                    shuffle=True)
+                                    shuffle=True, num_workers=4)
 
     # Create model and load weights
     net.build_model(type=args.neural_network)
