@@ -16,6 +16,7 @@ Experiments on transfer learning, and triplet loss on PatchCamelyon(PCam) datase
 ## Running the Code
 
 All the experiments can be run buy passing different command line arguments to the `Main.py` script. 
+
 ```python3 Main.py <options>```
 
 The different options available are:
