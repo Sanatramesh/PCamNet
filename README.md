@@ -15,7 +15,11 @@ Experiments on transfer learning, and triplet loss on PatchCamelyon(PCam) datase
 
 ## Running the Code
 
-All the experiments can be run buy passing different command line arguments to the `Main.py` script. The different options available are:
+All the experiments can be run buy passing different command line arguments to the `Main.py` script. 
+```python3 Main.py <options>
+```
+
+The different options available are:
 
 ```optional arguments:                                                   
   -h, --help            show this help message and exit
@@ -52,3 +56,9 @@ All the experiments can be run buy passing different command line arguments to t
                         Number of neighbors to use for KNN classifier.
 
 ```
+
+## Reference
+
+[1] Ehteshami Bejnordi et al. Diagnostic Assessment of Deep Learning Algorithms for Detection of Lymph Node Metastases in Women With Breast Cancer. JAMA: The Journal of the American Medical Association, 318(22), 2199–2210. doi:jama.2017.14585
+
+[2] Schroff, F., Kalenichenko, D., Philbin, J.: Facenet: A unified embedding for face recognition and clustering. In: Proceedings of the IEEE conference on computer vision and pattern recognition. pp. 815–823 (2015)
